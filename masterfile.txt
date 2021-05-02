@@ -1,0 +1,2 @@
+$ORIGIN google.com
+google.com 1799 IN A 172.217.30.206

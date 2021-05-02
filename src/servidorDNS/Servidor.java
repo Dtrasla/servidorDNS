@@ -23,10 +23,14 @@ into 5 sections (some of which are empty in certain cases) shown below:
 
 package servidorDNS;
 
+import java.io.BufferedReader;
+import java.io.FileReader;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
+import java.net.InetAddress;
 import java.net.SocketException;
+import java.nio.ByteBuffer;
 import java.util.*;
 
 public class Servidor {
@@ -34,32 +38,98 @@ public class Servidor {
 	private String direccionMaster;
 	private HashMap<String, ArrayList<Respuesta> > cache;
 	private int tam;
+	//DNS dns;
 	
 	public Servidor(String master, int tam) {
 		this.direccionMaster = master;
 		this.tam = tam;
+		this.cache = new HashMap<String, ArrayList<Respuesta>>();
+		//this.dns = new DNS(cache);
 	}
 	
 	
 	public void servidor() throws SocketException {
 		
 		byte[] entrada = new byte[tam];
-		byte[] salida = new byte[tam];
 		DatagramSocket socket = new DatagramSocket(Servidor.PUERTO);
 		try {
 			while(true) {
+				byte[] salida = new byte[tam];
 				DatagramPacket solicitud = new DatagramPacket(entrada,tam);
 				socket.receive(solicitud);
 				System.out.println(solicitud.getAddress().getHostAddress() + ": " + solicitud.getPort());
 				System.out.println("tam : " + solicitud.getLength());
 				
+				DNS dns = new DNS(this.cache,entrada);
 				
-				//falta crear respuestas
+				if(this.cache.containsKey( dns.getDireccion() )) {
+					salida = dns.realizarConsultaInterna(entrada );
+					
+				}
+				else {
+					salida = dns.realizarConsultaExterna(entrada);
+				}
+				
+				DatagramPacket paquete = new DatagramPacket(salida,salida.length, solicitud.getAddress(),53);
+				try {
+			            socket.send(paquete);
+				} catch (Exception e) {
+			            System.out.println("Enviando...");
+				}
+				
 			}
 		} catch(IOException e) {
 			
 		}
 		
 		socket.close();
+	}
+	
+	
+	
+	public static void main(String[] args) {
+		Servidor serv = new Servidor("src\\masterfile.txt",1024);
+		try {
+			serv.servidor();
+		} catch (SocketException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+	}
+	
+	
+	public void llenarCache() {
+		try {
+        BufferedReader br = new BufferedReader(new FileReader("src\\MasterFile.txt"));
+        String linea,dominio ="";
+        InetAddress ip;
+        byte[] name;
+        int ttl;
+        short tipo,clase,len =4;
+        while ((linea = br.readLine()) != null) {
+            String[] datos = linea.split(" ");
+            if (!datos[0].equalsIgnoreCase("$ORIGIN")) {
+                ArrayList<Respuesta> ips = new ArrayList<>();
+                dominio = datos[0];
+                name = datos[0].getBytes();
+                ttl = Integer.parseInt(datos[1]);
+                tipo = 0x0001;
+                clase = 0x0001;
+                ip = InetAddress.getByName(datos[4]);
+                Respuesta resp = new Respuesta(ByteBuffer.wrap(name).getShort(), tipo, clase, ttl, len, ip);
+                if (this.cache.containsKey(dominio)) {
+                    this.cache.get(dominio).add(resp);
+                } else {
+                    ips.add(resp);
+                    this.cache.put(dominio, ips);
+                }
+            }
+        }
+        br.close();
+		}
+		catch(IOException e) {
+			e.printStackTrace();
+		}
 	}
 }
