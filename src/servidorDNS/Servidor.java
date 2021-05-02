@@ -36,14 +36,14 @@ import java.util.*;
 public class Servidor {
 	public static final int PUERTO = 53;
 	private String direccionMaster;
-	private HashMap<String, ArrayList<Respuesta> > cache;
+	private HashMap<String, Set<Respuesta>> cache;
 	private int tam;
 	//DNS dns;
 	
 	public Servidor(String master, int tam) {
 		this.direccionMaster = master;
 		this.tam = tam;
-		this.cache = new HashMap<String, ArrayList<Respuesta>>();
+		this.cache = new HashMap<String, Set<Respuesta>>();
 		//this.dns = new DNS(cache);
 	}
 	
@@ -60,11 +60,10 @@ public class Servidor {
 				System.out.println(solicitud.getAddress().getHostAddress() + ": " + solicitud.getPort());
 				System.out.println("tam : " + solicitud.getLength());
 				
-				DNS dns = new DNS(this.cache,entrada);
+				DNS dns = new DNS(solicitud.getData());
 				
-				if(this.cache.containsKey( dns.getDireccion() )) {
-					salida = dns.realizarConsultaInterna(entrada );
-					
+				if(this.cache.containsKey( dns.getDominio() )) {
+					salida = dns.realizarConsultaInterna(solicitud.getData(), this.cache );	
 				}
 				else {
 					salida = dns.realizarConsultaExterna(entrada);
@@ -99,37 +98,33 @@ public class Servidor {
 	}
 	
 	
-	public void llenarCache() {
-		try {
-        BufferedReader br = new BufferedReader(new FileReader("src\\MasterFile.txt"));
-        String linea,dominio ="";
-        InetAddress ip;
-        byte[] name;
-        int ttl;
-        short tipo,clase,len =4;
-        while ((linea = br.readLine()) != null) {
-            String[] datos = linea.split(" ");
-            if (!datos[0].equalsIgnoreCase("$ORIGIN")) {
-                ArrayList<Respuesta> ips = new ArrayList<>();
-                dominio = datos[0];
-                name = datos[0].getBytes();
-                ttl = Integer.parseInt(datos[1]);
-                tipo = 0x0001;
-                clase = 0x0001;
-                ip = InetAddress.getByName(datos[4]);
-                Respuesta resp = new Respuesta(ByteBuffer.wrap(name).getShort(), tipo, clase, ttl, len, ip);
-                if (this.cache.containsKey(dominio)) {
-                    this.cache.get(dominio).add(resp);
-                } else {
-                    ips.add(resp);
-                    this.cache.put(dominio, ips);
-                }
-            }
-        }
-        br.close();
-		}
-		catch(IOException e) {
-			e.printStackTrace();
-		}
-	}
+
+	 public void llenarMasterFile() throws Exception {
+	        BufferedReader br = new BufferedReader(new FileReader("src\\MasterFile.txt"));
+	        String linea,dominio ="";
+	        InetAddress ip;
+	        byte[] name;
+	        int ttl;
+	        short tipo,clase,len =4;
+	        while ((linea = br.readLine()) != null) {
+	            String[] datos = linea.split(" ");
+	            if (!datos[0].equalsIgnoreCase("$ORIGIN")) {
+	                Set<Respuesta> ips = new HashSet<Respuesta>();
+	                dominio = datos[0];
+	                name = datos[0].getBytes();
+	                ttl = Integer.parseInt(datos[1]);
+	                tipo = 0x0001;
+	                clase = 0x0001;
+	                ip = InetAddress.getByName(datos[4]);
+	                Respuesta resp = new Respuesta(ByteBuffer.wrap(name).getShort(), tipo, clase, ttl, len, ip);
+	                if (this.cache.containsKey(dominio)) {
+	                    this.cache.get(dominio).add(resp);
+	                } else {
+	                    ips.add(resp);
+	                    this.cache.put(dominio, ips);
+	                }
+	            }
+	        }
+	        br.close();
+	    }
 }
