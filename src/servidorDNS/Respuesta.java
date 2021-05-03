@@ -63,7 +63,7 @@ public class Respuesta {
 	private short clase;
 	private int ttl; //Java no tiene unsigned
 	private short rdlength;
-	private InetAddress address;
+	private InetAddress direccion;
 	
 	public Respuesta(short name, short type, short clase, int ttl, short rdlength, InetAddress address) {
 		this.name = name;
@@ -71,7 +71,7 @@ public class Respuesta {
 		this.clase = clase;
 		this.ttl = ttl;
 		this.rdlength = rdlength;
-		this.address = address;
+		this.direccion = address;
 	}
 	
 	public byte[] devolverStream(){
@@ -83,7 +83,7 @@ public class Respuesta {
 			stream.writeShort(this.clase);
 			stream.writeInt(this.ttl);
 			stream.writeShort(this.rdlength);
-			stream.write(this.address.getAddress());
+			stream.write(this.direccion.getAddress());
 			
 			return o.toByteArray();
 		}

@@ -1,12 +1,9 @@
 /*
 4. MESSAGES
-
 4.1. Format
-
 All communications inside of the domain protocol are carried in a single
 format called a message.  The top level format of message is divided
 into 5 sections (some of which are empty in certain cases) shown below:
-
     +---------------------+
     |        Header       |
     +---------------------+
@@ -24,6 +21,7 @@ into 5 sections (some of which are empty in certain cases) shown below:
 package servidorDNS;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.net.DatagramPacket;
@@ -34,97 +32,94 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 public class Servidor {
-	public static final int PUERTO = 53;
-	private String direccionMaster;
-	private HashMap<String, Set<Respuesta>> cache;
-	private int tam;
-	//DNS dns;
-	
-	public Servidor(String master, int tam) {
-		this.direccionMaster = master;
-		this.tam = tam;
-		this.cache = new HashMap<String, Set<Respuesta>>();
-		//this.dns = new DNS(cache);
-	}
-	
-	
-	public void servidor() throws SocketException {
-		
-		byte[] entrada = new byte[tam];
-		DatagramSocket socket = new DatagramSocket(Servidor.PUERTO);
-		try {
-			while(true) {
-				byte[] salida = new byte[tam];
-				DatagramPacket solicitud = new DatagramPacket(entrada,tam);
-				socket.receive(solicitud);
-				System.out.println(solicitud.getAddress().getHostAddress() + ": " + solicitud.getPort());
-				System.out.println("tam : " + solicitud.getLength());
-				
-				DNS dns = new DNS(solicitud.getData());
-				
-				if(this.cache.containsKey( dns.getDominio() )) {
-					salida = dns.realizarConsultaInterna(solicitud.getData(), this.cache );	
-				}
-				else {
-					salida = dns.realizarConsultaExterna(entrada);
-				}
-				
-				DatagramPacket paquete = new DatagramPacket(salida,salida.length, solicitud.getAddress(),53);
-				try {
-			            socket.send(paquete);
-				} catch (Exception e) {
-			            System.out.println("Enviando...");
-				}
-				
-			}
-		} catch(IOException e) {
-			
-		}
-		
-		socket.close();
-	}
-	
-	
-	
-	public static void main(String[] args) {
-		Servidor serv = new Servidor("src\\masterfile.txt",1024);
-		try {
-			serv.servidor();
-		} catch (SocketException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		
-	}
-	
-	
+	private int port;
+	private int udpSize;
+	private HashMap<String, ArrayList<Respuesta>> masterFile;
 
-	 public void llenarMasterFile() throws Exception {
-	        BufferedReader br = new BufferedReader(new FileReader("src\\MasterFile.txt"));
-	        String linea,dominio ="";
-	        InetAddress ip;
-	        byte[] name;
-	        int ttl;
-	        short tipo,clase,len =4;
-	        while ((linea = br.readLine()) != null) {
-	            String[] datos = linea.split(" ");
-	            if (!datos[0].equalsIgnoreCase("$ORIGIN")) {
-	                Set<Respuesta> ips = new HashSet<Respuesta>();
-	                dominio = datos[0];
-	                name = datos[0].getBytes();
-	                ttl = Integer.parseInt(datos[1]);
-	                tipo = 0x0001;
-	                clase = 0x0001;
-	                ip = InetAddress.getByName(datos[4]);
-	                Respuesta resp = new Respuesta(ByteBuffer.wrap(name).getShort(), tipo, clase, ttl, len, ip);
-	                if (this.cache.containsKey(dominio)) {
-	                    this.cache.get(dominio).add(resp);
-	                } else {
-	                    ips.add(resp);
-	                    this.cache.put(dominio, ips);
-	                }
-	            }
-	        }
-	        br.close();
-	    }
+	public Servidor() {
+		this.port = 53;
+		this.udpSize = 512;
+		this.masterFile = new HashMap<String, ArrayList<Respuesta>>();
+		try {
+			llenarMasterFile();
+		} catch (Exception e) {
+		}
+	}
+
+	public void llenarMasterFile() throws Exception {
+		Scanner sc = new Scanner(new File("src/MasterFile.txt"));
+		String linea, dom = "";
+		InetAddress ip;
+		byte[] nom;
+		int ttl;
+		short tipo, clase, tam = 4;
+		while (sc.hasNextLine()) {
+			linea = sc.nextLine();
+			String[] tok = linea.split(" ");
+			if (!tok[0].equalsIgnoreCase("$ORIGIN")) {
+				ArrayList<Respuesta> ips = new ArrayList<>();
+				nom = tok[0].getBytes();
+				ttl = Integer.parseInt(tok[1]);
+				tipo = 0x0001;
+				clase = 0x0001;
+				ip = InetAddress.getByName(tok[4]);
+				//public Respuesta(short name, short type, short clase, int ttl, short rdlength, InetAddress address) {
+				Respuesta resp = new Respuesta(ByteBuffer.wrap(nom).getShort(), tipo,clase, ttl, tam, ip);
+				if (this.masterFile.containsKey(dom)) {
+					this.masterFile.get(dom).add(resp);
+				} else {
+					ips.add(resp);
+					this.masterFile.put(dom, ips);
+				}
+			} else
+				dom = tok[1];
+		}
+		sc.close();
+	}
+
+	public static void main(String[] args) {
+		System.out.println("Ejecutando Servidor DNS...");
+		while (true) {
+			Servidor sv = new Servidor();
+			try {
+				byte[] bufer = new byte[sv.udpSize];
+				while (true) {
+					DatagramSocket socket = new DatagramSocket(sv.port);
+					DatagramPacket peticion = new DatagramPacket(bufer, bufer.length);
+					socket.receive(peticion);
+					socket.setSoTimeout(5000);
+					System.out.print("\nPeticion desde el host: " + peticion.getAddress());
+					System.out.println(" Puerto No: " + peticion.getPort());
+					Mensajes control = new Mensajes(sv.getPort(), peticion.getAddress(), peticion,
+							socket, sv.getMasterFile());
+					control.start();
+				}
+			} catch (Exception e) {
+			}
+		}
+	}
+
+	public int getPort() {
+		return port;
+	}
+
+	public void setPort(int port) {
+		this.port = port;
+	}
+
+	public int getUdpSize() {
+		return udpSize;
+	}
+
+	public void setUdpSize(int udpSize) {
+		this.udpSize = udpSize;
+	}
+
+	public HashMap<String, ArrayList<Respuesta>> getMasterFile() {
+		return masterFile;
+	}
+
+	public void setMasterFile(HashMap<String, ArrayList<Respuesta>> masterFile) {
+		this.masterFile = masterFile;
+	}
 }
