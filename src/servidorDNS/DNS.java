@@ -105,12 +105,12 @@ Each resource record has the following format:
 	
 private int puerto;
 private Inet4Address ip;
-private short tid;
+private short id;
 private short flags;
-private short pregunta;
-private short answer;
-private short aut;
-private short adi;
+private short qdcount;
+private short ancount;
+private short nscount;
+private short arcount;
 private byte[] query;
 private String dominio = "";
 private short type;
@@ -120,12 +120,12 @@ private List<Respuesta> resp = new ArrayList<Respuesta>();
 public DNS(byte[] paquete) {
 	try {
 		DataInputStream din = new DataInputStream(new ByteArrayInputStream(paquete));
-		this.tid = din.readShort();
+		this.id = din.readShort();
 		this.flags = din.readShort();
-		this.pregunta = din.readShort();
-		this.answer = din.readShort();
-		this.aut = din.readShort();
-		this.adi = din.readShort();
+		this.qdcount = din.readShort();
+		this.ancount = din.readShort();
+		this.nscount = din.readShort();
+		this.arcount = din.readShort();
 		int tamR = 0;
 		while ((tamR = din.readByte()) > 0) {
 			this.query = new byte[tamR];
@@ -261,12 +261,12 @@ public byte[] respuestaI(HashMap<String, ArrayList<Respuesta>> masterFile) {
 	DataOutputStream dos = new DataOutputStream(bytes);
 	String[] dom = this.dominio.split("\\.");
 	try {
-		dos.writeShort(tid);
+		dos.writeShort(id);
 		dos.writeShort(0x8180);
-		dos.writeShort(pregunta);
+		dos.writeShort(qdcount);
 		dos.writeShort(masterFile.get(this.dominio).size());
-		dos.writeShort(aut);
-		dos.writeShort(adi);
+		dos.writeShort(nscount);
+		dos.writeShort(arcount);
 		for (int i = 0; i < dom.length; i++) {
 			byte[] bytesDom = dom[i].getBytes();
 			dos.writeByte(bytesDom.length);
@@ -293,12 +293,12 @@ public byte[] respuestaE() {
 	DataOutputStream dos = new DataOutputStream(out);
 	String[] nombreDom = this.dominio.split("\\.");
 	try {
-		dos.writeShort(tid);
+		dos.writeShort(id);
 		dos.writeShort(0x8180);
-		dos.writeShort(pregunta);
+		dos.writeShort(qdcount);
 		dos.writeShort(resp.size());
-		dos.writeShort(aut);
-		dos.writeShort(adi);
+		dos.writeShort(nscount);
+		dos.writeShort(arcount);
 		for (int i = 0; i < nombreDom.length; i++) {
 			byte[] bytesDom = nombreDom[i].getBytes();
 			dos.writeByte(bytesDom.length);
